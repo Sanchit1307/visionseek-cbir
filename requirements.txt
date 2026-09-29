@@ -1,0 +1,24 @@
+# VisionSeek - Python 3.10.x
+# Install in this order (see README), with numpy locked by constraints.txt:
+#   1. numpy, scipy, pandas, matplotlib, pillow, tqdm
+#   2. opencv-python, scikit-image
+#   3. torch, torchvision
+#   4. open_clip_torch, faiss-cpu
+#   5. streamlit
+
+numpy==1.26.4
+scipy==1.13.1
+pandas==2.2.2
+matplotlib==3.9.2
+pillow==10.4.0
+tqdm
+
+opencv-python==4.10.0.84
+scikit-image==0.24.0
+
+torch==2.4.1
+torchvision==0.19.1
+
+open_clip_torch
+faiss-cpu
+streamlit

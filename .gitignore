@@ -1,0 +1,25 @@
+# Virtual environment
+.venv/
+venv/
+
+# Data and generated indexes (large, shared via drive/pendrive)
+data/
+index/
+*.faiss
+*.npy
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
