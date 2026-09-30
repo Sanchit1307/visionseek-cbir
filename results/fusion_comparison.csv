@@ -1,0 +1,5 @@
+method,weights,norm,P@5,P@10,mAP
+clip only,{'clip': 1.0},zscore,0.9136,0.8798,0.6242
+classical_concat only,{'classical_concat': 1.0},zscore,0.428,0.3746,0.1634
+fixed hybrid 0.7 CLIP + 0.3 classical,"{'clip': 0.7, 'classical_concat': 0.3}",zscore,0.8844,0.8422,0.5661
+tuned hybrid (val),"{'clip': 0.95, 'classical_concat': 0.05}",none,0.914,0.8832,0.6251

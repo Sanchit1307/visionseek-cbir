@@ -46,7 +46,12 @@ def main() -> None:
             at.selectbox(key="retriever").set_value(name).run()
             assert not at.exception, (name, at.exception)
             assert any("Top" in s.value for s in at.subheader), name
+            assert any(s.value == "Why these results?" for s in at.subheader), name
         print("ok: image mode, all 6 retrievers + hybrid")
+
+        at.selectbox(key="inspect").set_value(3).run()
+        assert not at.exception, at.exception
+        print("ok: explanation panel, inspect result #3")
 
         # Degrade + restore the query
         at.selectbox(key="kind").set_value("noise").run()

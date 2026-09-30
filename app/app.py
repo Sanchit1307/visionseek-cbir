@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 from src import retrieval as rt  # noqa: E402
 from src.dataset import INDEX_DIR, RESULTS_DIR, bgr_to_rgb, open_gallery  # noqa: E402
 from src.degrade import degrade, restore  # noqa: E402
+from src.explain import edge_map, explain_results, hue_histogram_image  # noqa: E402
 from src.fusion import DEFAULT_NORM, load_weights  # noqa: E402
 
 DATASET = os.environ.get("VISIONSEEK_DATASET", "flowers102")
@@ -203,6 +204,11 @@ with tab_search:
                        f"(CLIP {res.weights.get('clip', 0):.2f}, classical {res.weights.get('classical_concat', 0):.2f}, "
                        f"norm = {res.norm}); it is not a cosine, only the order matters.")
         st.subheader(f"Top {len(res.ids)} results  ·  {RETRIEVER_LABELS.get(res.retriever, res.retriever)}")
+        exps = None                                   # per-result explanations (image queries only)
+        if mode == "Image":
+            sims = engine.all_similarities(query_img)
+            w_used = res.weights if retriever == "hybrid" else {retriever: 1.0}
+            exps = explain_results(sims, res.ids, w_used, getattr(res, "norm", DEFAULT_NORM))
         cols_per_row = 5
         for row in range(0, len(res.ids), cols_per_row):
             cols = st.columns(cols_per_row)
@@ -211,7 +217,36 @@ with tab_search:
                 label = int(engine.labels[g]) if engine.labels is not None else -1
                 mark = "" if rel is None else ("✅ " if rel[j] else "❌ ")
                 c.image(thumbnail(DATASET, g),
-                        caption=f"{mark}#{j + 1}  score {res.scores[j]:.3f}\n{class_name(gallery, label)}")
+                        caption=f"{mark}#{j + 1}  score {res.scores[j]:.3f}\n{class_name(gallery, label)}"
+                                + (f"\n↳ {exps[j].short}" if exps is not None and exps[j].short else ""))
+
+        if exps is not None:
+            st.divider()
+            st.subheader("Why these results?")
+            pick = st.selectbox("Inspect result", list(range(1, len(res.ids) + 1)), key="inspect",
+                                format_func=lambda i: f"#{i}")
+            e = exps[pick - 1]
+            match_img = get_gallery(DATASET).get(e.gid)[0]
+            st.write(e.text)
+            table = pd.DataFrame([{
+                "Retriever": r["label"], "Cosine": round(r["cosine"], 3),
+                "In top % of gallery": round(r["top_pct"], 2), "z-score": round(r["z"], 2),
+                "Weight": round(r["weight"], 2), "Contribution": round(r["contribution"], 3)}
+                for r in e.rows])
+            st.dataframe(table, hide_index=True)
+            if retriever == "hybrid":
+                st.caption(f"Contribution = weight x normalised score; they add up to the fused score {e.fused:.3f}.")
+            else:
+                st.caption("Only the selected retriever ranked this search (weight 1); "
+                           "the other rows are supporting evidence.")
+            qcol, mcol = st.columns(2)
+            for col, title, im in ((qcol, "Query", query_img), (mcol, f"Result #{pick}", match_img)):
+                col.markdown(f"**{title}**")
+                col.image(bgr_to_rgb(fit(im, 260)))
+                col.caption("Hue histogram (colour descriptor)")
+                col.image(bgr_to_rgb(hue_histogram_image(im)))
+                col.caption("Gradient magnitude (edge descriptor)")
+                col.image(bgr_to_rgb(edge_map(im)))
 
 # ------------------------------------------------------------------ results tab
 with tab_results:

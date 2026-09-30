@@ -23,6 +23,7 @@ import numpy as np
 from src import index as ix
 from src.dataset import INDEX_DIR, bgr_to_rgb
 from src.features import clip_encoder
+from src.explain import EXPLAIN_NAMES
 from src.features.classical import FEATURE_NAMES, extract_classical
 from src.fusion import DEFAULT_NORM, DEFAULT_WEIGHTS, fuse
 
@@ -160,6 +161,28 @@ class SearchEngine:
         q = l2_rows(w_img * np.asarray(qi) + (1.0 - w_img) * np.asarray(qt))
         return self._search("clip", q, k, (time.perf_counter() - t0) * 1000.0, exclude_id)
 
+    def _query_vectors(self, img_bgr: np.ndarray, names: list[str]) -> tuple[dict, float]:
+        """{retriever: (1, D)} for several retrievers; the classical descriptors are
+        extracted once. Also returns the extraction time in ms."""
+        t0 = time.perf_counter()
+        qvecs: dict[str, np.ndarray] = {}
+        if "clip" in names:
+            qvecs["clip"] = self.query_vector(img_bgr, "clip")[0]
+        classical = [n for n in names if n != "clip"]
+        if classical:
+            f = extract_classical(img_bgr)
+            for n in classical:
+                qvecs[n] = (concat_classical({m: f[m][None] for m in FEATURE_NAMES})
+                            if n == "classical_concat" else f[n][None])
+        return qvecs, (time.perf_counter() - t0) * 1000.0
+
+    def all_similarities(self, img_bgr: np.ndarray,
+                         names: tuple[str, ...] = EXPLAIN_NAMES + ("classical_concat",)) -> dict:
+        """{retriever: (N,) cosine of the query to the whole gallery} (for src.explain)."""
+        names = [n for n in names if n in self.vectors]
+        qvecs, _ = self._query_vectors(img_bgr, names)
+        return {n: (np.asarray(qvecs[n], np.float32) @ self.vectors[n].T)[0] for n in names}
+
     def search_fused(self, img_bgr: np.ndarray, weights: dict[str, float] | None = None,
                      k: int = 10, norm: str | None = None,
                      exclude_id: int | None = None) -> FusedResult:
@@ -173,17 +196,7 @@ class SearchEngine:
             raise KeyError(f"retriever(s) {missing} have no vectors in {self.index_dir}")
         total = sum(weights[n] for n in names)
 
-        t0 = time.perf_counter()
-        qvecs: dict[str, np.ndarray] = {}
-        if "clip" in names:
-            qvecs["clip"] = self.query_vector(img_bgr, "clip")[0]
-        classical = [n for n in names if n != "clip"]
-        if classical:                              # extract the classical descriptors once
-            f = extract_classical(img_bgr)
-            for n in classical:
-                qvecs[n] = (concat_classical({m: f[m][None] for m in FEATURE_NAMES})
-                            if n == "classical_concat" else f[n][None])
-        extract_ms = (time.perf_counter() - t0) * 1000.0
+        qvecs, extract_ms = self._query_vectors(img_bgr, names)
 
         t0 = time.perf_counter()
         sims = {n: (np.asarray(qvecs[n], np.float32) @ self.vectors[n].T)[0] for n in names}

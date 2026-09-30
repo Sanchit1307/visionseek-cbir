@@ -65,3 +65,14 @@ from src.fusion import fuse, tune, grid_weights, evaluate_fusion, load_weights
 # fused  = fuse(scores, weights_for_bucket, norm="zscore")            # (Q, N)
 # per bucket: tune(scores_val_bucket, labels, val_ids, ["clip", "classical_concat"], step=0.1)
 ```
+
+## WP11: explanation panel
+```powershell
+python tests\test_explain.py           # numbers, reasons, visuals, contributions == fused scores
+python tests\test_app.py               # includes "Why these results?" and inspect result #3
+streamlit run app\app.py               # Image mode -> scroll below the grid -> "Why these results?"
+```
+Per result: cosine, "in top x% of the gallery", z-score, weight, contribution for CLIP / colour /
+texture / edge / DCT, a plain-text reason built from the strongest signals (no language model),
+plus hue histograms and gradient (edge) maps of query and match. Text-only searches have no
+image to compare, so the panel is shown for image queries only.
