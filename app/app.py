@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 from src import retrieval as rt  # noqa: E402
 from src.dataset import INDEX_DIR, RESULTS_DIR, bgr_to_rgb, open_gallery  # noqa: E402
 from src.degrade import degrade, restore  # noqa: E402
+from src.fusion import DEFAULT_NORM, load_weights  # noqa: E402
 
 DATASET = os.environ.get("VISIONSEEK_DATASET", "flowers102")
 NOISE_SEED = 1234
@@ -36,6 +37,7 @@ RETRIEVER_LABELS = {
     "texture": "Classical: texture (LBP)",
     "edge": "Classical: edge orientation",
     "dct": "Classical: DCT statistics",
+    "hybrid": "Hybrid: CLIP + classical (score fusion)",
 }
 DEGRADE_LEVELS = {"noise": (10, 25, 50), "blur": (5, 9, 15), "jpeg": (30, 10)}
 RESTORE_OPTIONS = {"none": None, "median 3x3": ("median", 3), "median 5x5": ("median", 5),
@@ -87,8 +89,18 @@ with st.sidebar:
     st.header("Search")
     mode = st.radio("Search mode", ["Image", "Text", "Image + text"], key="mode")
     if mode == "Image":
-        retriever = st.selectbox("Retriever", engine.available, key="retriever",
-                                 format_func=lambda n: RETRIEVER_LABELS.get(n, n))
+        can_fuse = {"clip", "classical_concat"} <= set(engine.available)
+        retriever = st.selectbox("Retriever", engine.available + (["hybrid"] if can_fuse else []),
+                                 key="retriever", format_func=lambda n: RETRIEVER_LABELS.get(n, n))
+        if retriever == "hybrid":
+            tuned_w, tuned_norm = load_weights(RESULTS_DIR / "fusion_weights.json")
+            two_way = set(tuned_w) == {"clip", "classical_concat"}
+            default_w = round(tuned_w["clip"] / sum(tuned_w.values()) / 0.05) * 0.05 if two_way else 0.7
+            fuse_norm = tuned_norm if two_way else DEFAULT_NORM
+            w_clip = st.slider("CLIP weight (classical = 1 - CLIP)", 0.0, 1.0,
+                               float(min(1.0, max(0.0, default_w))), 0.05, key="w_clip")
+            st.caption("Default = weights tuned on the validation split "
+                       "(results/fusion_weights.json), or 0.7 / 0.3 if not tuned yet.")
     else:
         retriever = "clip"
         st.caption("Text queries use the CLIP index (classical descriptors have no text meaning).")
@@ -159,12 +171,15 @@ with tab_search:
         st.info({"Image": "Upload a photo or pick a random gallery image to search.",
                  "Text": "Type a description to search.",
                  "Image + text": "Provide both a query image and a text description."}[mode])
-    elif "clip" not in engine.available and (mode != "Image" or retriever == "clip"):
+    elif "clip" not in engine.available and (mode != "Image" or retriever in ("clip", "hybrid")):
         st.warning("The CLIP index is missing. Run `python scripts\\build_index.py` (without --skip-clip).")
     else:
         try:
             with st.spinner("Searching..."):
-                if mode == "Image":
+                if mode == "Image" and retriever == "hybrid":
+                    res = engine.search_fused(query_img, {"clip": w_clip, "classical_concat": 1.0 - w_clip},
+                                              k, fuse_norm, exclude_id=query_gid)
+                elif mode == "Image":
                     res = engine.search_image(query_img, retriever, k, exclude_id=query_gid)
                 elif mode == "Text":
                     res = engine.search_text(text, k)
@@ -183,6 +198,10 @@ with tab_search:
             rel = engine.labels[res.ids] == engine.labels[query_gid]
             m4.metric(f"Precision@{len(res.ids)} (this query)", f"{rel.mean():.0%}")
 
+        if retriever == "hybrid" and mode == "Image":
+            st.caption("Fused score = weighted sum of per-retriever z-scores "
+                       f"(CLIP {res.weights.get('clip', 0):.2f}, classical {res.weights.get('classical_concat', 0):.2f}, "
+                       f"norm = {res.norm}); it is not a cosine, only the order matters.")
         st.subheader(f"Top {len(res.ids)} results  ·  {RETRIEVER_LABELS.get(res.retriever, res.retriever)}")
         cols_per_row = 5
         for row in range(0, len(res.ids), cols_per_row):

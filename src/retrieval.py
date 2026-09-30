@@ -15,7 +15,7 @@ only at the CLIP boundary.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +24,7 @@ from src import index as ix
 from src.dataset import INDEX_DIR, bgr_to_rgb
 from src.features import clip_encoder
 from src.features.classical import FEATURE_NAMES, extract_classical
+from src.fusion import DEFAULT_NORM, DEFAULT_WEIGHTS, fuse
 
 RETRIEVERS = ("clip", "classical_concat") + tuple(FEATURE_NAMES)
 
@@ -71,6 +72,15 @@ class SearchResult:
     @property
     def total_ms(self) -> float:
         return self.extract_ms + self.search_ms
+
+
+@dataclass
+class FusedResult(SearchResult):
+    """Hybrid search result. `scores` are fused (normalised) scores; `parts` holds
+    the raw cosine of each retriever for the returned ids (for the explanation panel)."""
+    parts: dict = field(default_factory=dict)      # retriever -> (k,) raw cosine
+    weights: dict = field(default_factory=dict)    # weights actually used (sum to 1)
+    norm: str = DEFAULT_NORM
 
 
 class SearchEngine:
@@ -149,3 +159,41 @@ class SearchEngine:
         qt = self.clip.encode_text([text])
         q = l2_rows(w_img * np.asarray(qi) + (1.0 - w_img) * np.asarray(qt))
         return self._search("clip", q, k, (time.perf_counter() - t0) * 1000.0, exclude_id)
+
+    def search_fused(self, img_bgr: np.ndarray, weights: dict[str, float] | None = None,
+                     k: int = 10, norm: str | None = None,
+                     exclude_id: int | None = None) -> FusedResult:
+        """Hybrid image search: per-retriever cosine to the whole gallery, normalised,
+        weighted sum (src.fusion.fuse), top-k. Exact, no candidate truncation."""
+        weights = dict(weights or DEFAULT_WEIGHTS)
+        norm = norm or DEFAULT_NORM
+        names = [n for n, w in weights.items() if w > 0]
+        missing = [n for n in names if n not in self.vectors]
+        if missing:
+            raise KeyError(f"retriever(s) {missing} have no vectors in {self.index_dir}")
+        total = sum(weights[n] for n in names)
+
+        t0 = time.perf_counter()
+        qvecs: dict[str, np.ndarray] = {}
+        if "clip" in names:
+            qvecs["clip"] = self.query_vector(img_bgr, "clip")[0]
+        classical = [n for n in names if n != "clip"]
+        if classical:                              # extract the classical descriptors once
+            f = extract_classical(img_bgr)
+            for n in classical:
+                qvecs[n] = (concat_classical({m: f[m][None] for m in FEATURE_NAMES})
+                            if n == "classical_concat" else f[n][None])
+        extract_ms = (time.perf_counter() - t0) * 1000.0
+
+        t0 = time.perf_counter()
+        sims = {n: (np.asarray(qvecs[n], np.float32) @ self.vectors[n].T)[0] for n in names}
+        fused = fuse(sims, weights, norm)
+        if exclude_id is not None:
+            fused[exclude_id] = -np.inf
+        k = min(k, len(fused) - (1 if exclude_id is not None else 0))
+        top = np.argpartition(-fused, k - 1)[:k]
+        top = top[np.argsort(-fused[top], kind="stable")]
+        search_ms = (time.perf_counter() - t0) * 1000.0
+        return FusedResult("hybrid", top, fused[top], extract_ms, search_ms,
+                           parts={n: sims[n][top] for n in names},
+                           weights={n: weights[n] / total for n in names}, norm=norm)
