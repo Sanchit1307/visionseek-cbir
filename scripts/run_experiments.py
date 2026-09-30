@@ -21,6 +21,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 from tqdm import tqdm  # noqa: E402
@@ -47,6 +48,8 @@ CONDITIONS = (
     + [("jpeg", q) for q in JPEG_QUALITIES]
 )
 _LEVEL_TAG = {"noise": "s", "blur": "k", "jpeg": "q"}
+ORDER = ["color", "texture", "edge", "dct", "classical_concat", "clip"]
+CLIP_FILE = "clip_image.npy"   # Person B: gallery CLIP embeddings, same row order as labels.npy
 
 
 def cond_name(kind: str, level: int) -> str:
@@ -74,7 +77,15 @@ def classical_encoder(images: list[np.ndarray]) -> dict[str, np.ndarray]:
     return out
 
 
-def load_gallery() -> tuple[dict[str, np.ndarray], np.ndarray, np.ndarray]:
+def clip_query_encoder(images: list[np.ndarray]) -> dict[str, np.ndarray]:
+    """BGR images -> {'clip': (Q, 512)} with Person B's encoder (converted to RGB here)."""
+    from src.features import clip_encoder  # lazy: torch / open_clip load only when used
+
+    rgb = [cv2.cvtColor(im, cv2.COLOR_BGR2RGB) for im in images]
+    return {"clip": clip_encoder.encode_images(rgb)}
+
+
+def load_gallery(with_clip: bool = True) -> tuple[dict[str, np.ndarray], np.ndarray, np.ndarray]:
     need = [bc.INDEX_DIR / f"classical_{n}.npy" for n in FEATURE_NAMES]
     need += [bc.INDEX_DIR / "labels.npy", bc.INDEX_DIR / "query_ids.npy"]
     missing = [p.name for p in need if not p.exists()]
@@ -83,7 +94,19 @@ def load_gallery() -> tuple[dict[str, np.ndarray], np.ndarray, np.ndarray]:
                          "Run scripts\\baseline_classical.py first.")
     feats = {n: np.load(bc.INDEX_DIR / f"classical_{n}.npy") for n in FEATURE_NAMES}
     feats["classical_concat"] = _row_l2(np.hstack([feats[n] for n in FEATURE_NAMES]))
-    return feats, np.load(bc.INDEX_DIR / "labels.npy"), np.load(bc.INDEX_DIR / "query_ids.npy")
+    labels = np.load(bc.INDEX_DIR / "labels.npy")
+    query_ids = np.load(bc.INDEX_DIR / "query_ids.npy")
+    if with_clip:
+        cp = bc.INDEX_DIR / CLIP_FILE
+        if cp.exists():
+            clip = np.load(cp)
+            if clip.ndim != 2 or clip.shape[0] != len(labels):
+                raise SystemExit(f"{cp.name} has shape {clip.shape}, expected "
+                                 f"({len(labels)}, D) in the same order as labels.npy.")
+            feats["clip"] = _row_l2(clip)
+        else:
+            print(f"NOTE: {cp} not found -> running the classical retrievers only.")
+    return feats, labels, query_ids
 
 
 def score(qvecs: dict[str, np.ndarray], gallery: dict[str, np.ndarray],
@@ -197,14 +220,34 @@ def plot_restoration(res: pd.DataFrame, rob: pd.DataFrame, path: Path) -> None:
     plt.close(fig)
 
 
+def check_against_baseline(rob: pd.DataFrame) -> None:
+    """The clean rows must reproduce the baseline CSVs (same queries, same protocol)."""
+    clean = rob[rob["condition"] == "clean"].set_index("retriever")
+    for fname in ("baseline_classical.csv", "baseline_clip.csv"):
+        p = bc.RESULTS_DIR / fname
+        if not p.exists():
+            continue
+        base = pd.read_csv(p).set_index("retriever")
+        for name in base.index:
+            if name not in clean.index:
+                continue
+            got, ref = float(clean.loc[name, "mAP"]), float(base.loc[name, "mAP"])
+            status = "OK" if abs(got - ref) < 5e-4 else "MISMATCH"
+            print(f"  clean check  {name:18s} mAP {got:.4f} vs baseline {ref:.4f}  {status}")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--limit", type=int, default=None,
                     help="use only the first N saved queries (quick test)")
+    ap.add_argument("--no-clip", action="store_true",
+                    help="skip the CLIP retriever (classical only)")
     args = ap.parse_args(argv)
 
-    gallery, labels, query_ids = load_gallery()
+    gallery, labels, query_ids = load_gallery(with_clip=not args.no_clip)
+    encoders = (classical_encoder,) + ((clip_query_encoder,) if "clip" in gallery else ())
+    print("Retrievers:", ", ".join(gallery))
     if args.limit:
         query_ids = query_ids[:args.limit]
 
@@ -212,7 +255,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"Loading {len(query_ids)} query images...")
     images = [ds.get(int(g))[0] for g in tqdm(query_ids, desc="Loading")]
 
-    rob, res = run_experiments(images, gallery, labels, query_ids)
+    rob, res = run_experiments(images, gallery, labels, query_ids, encoders=encoders)
 
     out = bc.RESULTS_DIR
     out.mkdir(parents=True, exist_ok=True)
@@ -221,15 +264,22 @@ def main(argv: list[str] | None = None) -> None:
     plot_robustness(rob, out / "robustness.png")
     plot_restoration(res, rob, out / "restoration.png")
 
+    if not args.limit:
+        print("\nClean rows vs baseline CSVs:")
+        check_against_baseline(rob)
+
     print("\nmAP by condition (rows) and retriever (columns):")
-    print(rob.pivot(index="condition", columns="retriever", values="mAP")
-          .reindex(["clean"] + [cond_name(k, l) for k, l in CONDITIONS]).to_string())
+    piv = rob.pivot(index="condition", columns="retriever", values="mAP")
+    piv = piv.reindex(["clean"] + [cond_name(k, l) for k, l in CONDITIONS])
+    print(piv[[c for c in ORDER if c in piv.columns]].to_string())
     best = (res.sort_values("mAP_gain", ascending=False)
             .groupby(["condition", "retriever"]).head(1))
-    print("\nBest restoration per condition for classical_concat:")
-    print(best[best["retriever"] == "classical_concat"]
-          [["condition", "restoration", "mAP_degraded", "mAP", "recovery_pct"]]
-          .to_string(index=False))
+    for r in ("classical_concat", "clip"):
+        if r in set(best["retriever"]):
+            print(f"\nBest restoration per condition for {r}:")
+            print(best[best["retriever"] == r]
+                  [["condition", "restoration", "mAP_degraded", "mAP", "recovery_pct"]]
+                  .to_string(index=False))
     print(f"\nSaved to {out}: robustness.csv/.png, restoration.csv/.png")
 
 
