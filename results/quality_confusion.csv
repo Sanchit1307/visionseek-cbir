@@ -1,0 +1,12 @@
+condition,expected,clean,blurred,noisy,compressed,dark/low-contrast,hit_%
+clean,clean,88.4,2.0,1.6,2.8,5.2,88.4
+noise_s10,noisy,0.0,0.0,100.0,0.0,0.0,100.0
+noise_s25,noisy,0.0,0.0,100.0,0.0,0.0,100.0
+noise_s50,noisy,0.0,0.0,100.0,0.0,0.0,100.0
+blur_k5,blurred,37.0,57.2,0.0,0.0,5.8,57.2
+blur_k9,blurred,2.6,91.4,0.0,0.0,6.0,91.4
+blur_k15,blurred,0.0,93.6,0.0,0.0,6.4,93.6
+jpeg_q30,compressed,19.0,0.0,0.8,79.4,0.8,79.4
+jpeg_q10,compressed,0.2,0.0,0.6,99.2,0.0,99.2
+dark_x0.4,dark/low-contrast,0.0,0.0,0.4,2.6,97.0,97.0
+lowcon_x0.4,dark/low-contrast,6.8,4.6,0.4,2.6,85.6,85.6

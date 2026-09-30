@@ -1,0 +1,12 @@
+{
+  "noise_max": 2.4967319464223183,
+  "blockiness_max": 1.6216824143186743,
+  "sharpness_min": 22.393041415622882,
+  "brightness_min": 65.92726092953524,
+  "contrast_min": 28.2378489920396,
+  "meta": {
+    "calibrated_on": "flowers102 val, clean images",
+    "n_images": 1020,
+    "fp_rate": 0.02
+  }
+}
