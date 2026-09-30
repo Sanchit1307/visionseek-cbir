@@ -1,0 +1,10 @@
+{
+  "weights": {
+    "clip": 0.95,
+    "classical_concat": 0.05
+  },
+  "norm": "none",
+  "tuned_on": "val ids 1020..2039",
+  "objective": "mAP",
+  "val_mAP": 0.5717
+}
