@@ -1,0 +1,66 @@
+condition,method,n_queries,P@5,P@10,mAP
+clean,clip only,500,0.9136,0.8798,0.6242
+clean,classical only,500,0.428,0.3746,0.1634
+clean,fixed hybrid,500,0.914,0.8832,0.6251
+clean,adaptive,500,0.9136,0.8832,0.625
+clean,adaptive (oracle bucket),500,0.914,0.8832,0.6251
+noise_s10,clip only,500,0.904,0.8686,0.5998
+noise_s10,classical only,500,0.4096,0.3628,0.1578
+noise_s10,fixed hybrid,500,0.9056,0.8724,0.6043
+noise_s10,adaptive,500,0.9024,0.868,0.6032
+noise_s10,adaptive (oracle bucket),500,0.9024,0.868,0.6032
+noise_s25,clip only,500,0.8632,0.8284,0.5658
+noise_s25,classical only,500,0.3584,0.3194,0.1386
+noise_s25,fixed hybrid,500,0.8672,0.8354,0.5732
+noise_s25,adaptive,500,0.8736,0.8374,0.5769
+noise_s25,adaptive (oracle bucket),500,0.8736,0.8374,0.5769
+noise_s50,clip only,500,0.7368,0.7,0.4517
+noise_s50,classical only,500,0.242,0.2152,0.0947
+noise_s50,fixed hybrid,500,0.7528,0.7156,0.4636
+noise_s50,adaptive,500,0.7604,0.7302,0.477
+noise_s50,adaptive (oracle bucket),500,0.7604,0.7302,0.477
+blur_k5,clip only,500,0.8864,0.853,0.5745
+blur_k5,classical only,500,0.4244,0.373,0.1627
+blur_k5,fixed hybrid,500,0.89,0.8538,0.5787
+blur_k5,adaptive,500,0.8868,0.8546,0.5796
+blur_k5,adaptive (oracle bucket),500,0.8848,0.8538,0.5797
+blur_k9,clip only,500,0.8572,0.8152,0.5344
+blur_k9,classical only,500,0.4176,0.366,0.1612
+blur_k9,fixed hybrid,500,0.8624,0.8202,0.5402
+blur_k9,adaptive,500,0.8596,0.82,0.5427
+blur_k9,adaptive (oracle bucket),500,0.8604,0.8204,0.543
+blur_k15,clip only,500,0.8,0.757,0.4814
+blur_k15,classical only,500,0.4136,0.357,0.1582
+blur_k15,fixed hybrid,500,0.8124,0.765,0.4892
+blur_k15,adaptive,500,0.8148,0.7664,0.4936
+blur_k15,adaptive (oracle bucket),500,0.8152,0.7668,0.494
+jpeg_q30,clip only,500,0.8908,0.8614,0.6087
+jpeg_q30,classical only,500,0.4264,0.3732,0.1617
+jpeg_q30,fixed hybrid,500,0.896,0.8606,0.612
+jpeg_q30,adaptive,500,0.896,0.8608,0.612
+jpeg_q30,adaptive (oracle bucket),500,0.896,0.8606,0.612
+jpeg_q10,clip only,500,0.8232,0.794,0.5462
+jpeg_q10,classical only,500,0.3668,0.3276,0.1479
+jpeg_q10,fixed hybrid,500,0.834,0.8018,0.5535
+jpeg_q10,adaptive,500,0.8336,0.8018,0.5534
+jpeg_q10,adaptive (oracle bucket),500,0.834,0.8018,0.5535
+dark_x0.6,clip only,500,0.8784,0.8396,0.5655
+dark_x0.6,classical only,500,0.2176,0.1936,0.0804
+dark_x0.6,fixed hybrid,500,0.8736,0.8372,0.5655
+dark_x0.6,adaptive,500,0.8736,0.837,0.5654
+dark_x0.6,adaptive (oracle bucket),500,0.8736,0.8372,0.5655
+dark_x0.4,clip only,500,0.8168,0.776,0.4997
+dark_x0.4,classical only,500,0.1332,0.122,0.0548
+dark_x0.4,fixed hybrid,500,0.8088,0.7746,0.4989
+dark_x0.4,adaptive,500,0.8088,0.7746,0.4988
+dark_x0.4,adaptive (oracle bucket),500,0.8088,0.7746,0.4989
+lowcon_x0.6,clip only,500,0.862,0.827,0.5524
+lowcon_x0.6,classical only,500,0.1328,0.1166,0.0544
+lowcon_x0.6,fixed hybrid,500,0.858,0.8238,0.5535
+lowcon_x0.6,adaptive,500,0.8588,0.8226,0.5532
+lowcon_x0.6,adaptive (oracle bucket),500,0.858,0.8238,0.5535
+lowcon_x0.4,clip only,500,0.7648,0.719,0.4642
+lowcon_x0.4,classical only,500,0.0664,0.062,0.0309
+lowcon_x0.4,fixed hybrid,500,0.76,0.7232,0.466
+lowcon_x0.4,adaptive,500,0.7564,0.7228,0.4659
+lowcon_x0.4,adaptive (oracle bucket),500,0.76,0.7232,0.466
