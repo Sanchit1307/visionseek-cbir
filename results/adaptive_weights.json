@@ -1,0 +1,92 @@
+{
+  "norm": "none",
+  "fixed_weights": {
+    "clip": 0.95,
+    "classical_concat": 0.05
+  },
+  "buckets": {
+    "clean": {
+      "n_val_total": 1294,
+      "n_val_used": 1294,
+      "weights": {
+        "clip": 0.95,
+        "classical_concat": 0.05
+      },
+      "best_grid_weights": {
+        "clip": 0.95,
+        "classical_concat": 0.05
+      },
+      "val_mAP_best": 0.5313,
+      "val_mAP_fixed": 0.5313,
+      "val_gain": 0.0,
+      "used": "fixed (gain < 0.002)"
+    },
+    "blurred": {
+      "n_val_total": 1279,
+      "n_val_used": 1279,
+      "weights": {
+        "clip": 0.9,
+        "classical_concat": 0.1
+      },
+      "best_grid_weights": {
+        "clip": 0.9,
+        "classical_concat": 0.1
+      },
+      "val_mAP_best": 0.4756,
+      "val_mAP_fixed": 0.4732,
+      "val_gain": 0.0024,
+      "used": "tuned"
+    },
+    "noisy": {
+      "n_val_total": 1528,
+      "n_val_used": 1528,
+      "weights": {
+        "clip": 0.85,
+        "classical_concat": 0.15
+      },
+      "best_grid_weights": {
+        "clip": 0.85,
+        "classical_concat": 0.15
+      },
+      "val_mAP_best": 0.5083,
+      "val_mAP_fixed": 0.5035,
+      "val_gain": 0.0048,
+      "used": "tuned"
+    },
+    "compressed": {
+      "n_val_total": 910,
+      "n_val_used": 910,
+      "weights": {
+        "clip": 0.95,
+        "classical_concat": 0.05
+      },
+      "best_grid_weights": {
+        "clip": 0.9,
+        "classical_concat": 0.1
+      },
+      "val_mAP_best": 0.5458,
+      "val_mAP_fixed": 0.5446,
+      "val_gain": 0.0012,
+      "used": "fixed (gain < 0.002)"
+    },
+    "dark/low-contrast": {
+      "n_val_total": 1489,
+      "n_val_used": 1489,
+      "weights": {
+        "clip": 0.95,
+        "classical_concat": 0.05
+      },
+      "best_grid_weights": {
+        "clip": 0.95,
+        "classical_concat": 0.05
+      },
+      "val_mAP_best": 0.4859,
+      "val_mAP_fixed": 0.4859,
+      "val_gain": 0.0,
+      "used": "fixed (gain < 0.002)"
+    }
+  },
+  "tuned_on": "flowers102 val ids 1020..2039 (500 images x 13 conditions), objective mAP",
+  "min_gain": 0.002,
+  "step": 0.05
+}

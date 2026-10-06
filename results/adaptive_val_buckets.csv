@@ -1,0 +1,14 @@
+row_0,blurred,clean,compressed,dark/low-contrast,noisy
+clean,7,453,7,22,11
+noise_s10,0,0,0,0,500
+noise_s25,0,0,0,0,500
+noise_s50,0,0,0,0,500
+blur_k5,260,215,0,25,0
+blur_k9,455,18,0,27,0
+blur_k15,468,0,0,32,0
+jpeg_q30,0,115,377,2,6
+jpeg_q10,0,0,497,0,3
+dark_x0.6,24,182,7,285,2
+dark_x0.4,1,1,8,488,2
+lowcon_x0.6,40,276,7,175,2
+lowcon_x0.4,24,34,7,433,2
