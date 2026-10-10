@@ -1,0 +1,4 @@
+retriever,n_queries,type_P@5,type_P@10,type_mAP,colour_P@10,clip_zero_shot_type_acc
+color,300,0.4867,0.44,0.246,0.466,
+classical_concat,300,0.7853,0.747,0.5002,0.426,
+clip,300,0.9193,0.914,0.7923,0.392,0.9135
