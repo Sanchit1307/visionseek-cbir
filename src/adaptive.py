@@ -20,21 +20,33 @@ import json
 from pathlib import Path
 
 from src.dataset import RESULTS_DIR
-from src.fusion import DEFAULT_NORM, load_weights
+from src.fusion import DEFAULT_NORM, NORMS, load_weights
 from src.quality import BUCKETS
 
 TABLE_PATH = RESULTS_DIR / "adaptive_weights.json"
 FIXED_PATH = RESULTS_DIR / "fusion_weights.json"
 
 
+def _valid(w: dict) -> bool:
+    """A usable weight dict: non-empty, finite-looking, non-negative, positive sum."""
+    return (isinstance(w, dict) and len(w) > 0
+            and all(isinstance(v, (int, float)) and v >= 0 for v in w.values())
+            and sum(w.values()) > 0)
+
+
 def load_table(path: Path | None = None) -> tuple[dict[str, dict[str, float]], str]:
-    """({bucket: {retriever: weight}}, norm). Falls back to the fixed hybrid for every bucket."""
+    """({bucket: {retriever: weight}}, norm). Falls back to the fixed hybrid for every bucket
+    when the file is missing, is not valid JSON, has the wrong structure, or holds invalid
+    weights or an unknown normalisation."""
     p = Path(path) if path is not None else TABLE_PATH
     try:
         d = json.loads(p.read_text(encoding="utf-8"))
         table = {b: {k: float(v) for k, v in e["weights"].items()} for b, e in d["buckets"].items()}
-        return table, d.get("norm", DEFAULT_NORM)
-    except (OSError, ValueError, KeyError):
+        norm = d.get("norm", DEFAULT_NORM)
+        if norm not in NORMS or not table or not all(_valid(w) for w in table.values()):
+            raise ValueError("invalid adaptive table")
+        return table, norm
+    except (OSError, ValueError, KeyError, AttributeError, TypeError):
         fixed, norm = load_weights(FIXED_PATH)
         return {b: dict(fixed) for b in BUCKETS}, norm
 
@@ -44,7 +56,7 @@ def adaptive_weights(quality: dict, table: dict | None = None) -> dict[str, floa
     if table is None:
         table, _ = load_table()
     bucket = quality.get("bucket", "clean")
-    if bucket in table:
+    if bucket in table and _valid(table[bucket]):
         return dict(table[bucket])
     fixed, _ = load_weights(FIXED_PATH)
     return dict(fixed)
