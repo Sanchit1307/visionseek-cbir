@@ -13,6 +13,7 @@ VISIONSEEK_INDEX_DIR and VISIONSEEK_RESULTS_DIR (used for tests / other machines
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -142,13 +143,137 @@ class FolderGallery:
         return bgr, int(self.labels_arr[g])
 
 
+class CatalogGallery:
+    """Product catalogue written by scripts/prepare_demo_dataset.py (Person A), e.g. index/demo/.
+
+    <index_dir>/metadata.csv  one row per gallery vector (row i = vector i): an image id plus
+                              articleType, masterCategory, subCategory, gender, baseColour,
+                              productDisplayName
+    <index_dir>/meta.json     {"image_root": ...}; the image of row i is <image_root>/<id>.jpg
+    <index_dir>/labels.npy    class label per vector (articleType)
+
+    prepare_demo_dataset.py stores image_root as an ABSOLUTE path on the machine that built the index.
+    If it does not exist here the loader also tries data/fashion/images (the Kaggle folder); otherwise set
+    VISIONSEEK_DEMO_IMAGES to the folder holding the .jpg files.
+    """
+
+    FILTER_COLUMNS = (("gender", "Gender"), ("masterCategory", "Master category"),
+                      ("subCategory", "Sub category"), ("articleType", "Article type"),
+                      ("baseColour", "Colour (exact base colour)"))
+    ID_COLUMNS = ("id", "image_id", "imageid", "image", "filename")
+
+    def __init__(self, index_dir: Path) -> None:
+        import pandas as pd  # lazy
+
+        d = Path(index_dir)
+        for f in ("metadata.csv", "labels.npy"):
+            if not (d / f).exists():
+                raise FileNotFoundError(f"{d / f} not found (run scripts/prepare_demo_dataset.py)")
+        self.meta = pd.read_csv(d / "metadata.csv")
+        info = json.loads((d / "meta.json").read_text(encoding="utf-8")) if (d / "meta.json").exists() else {}
+        self.labels_arr = np.load(d / "labels.npy").astype(np.int64)
+        if len(self.meta) != len(self.labels_arr):
+            raise ValueError(f"metadata.csv has {len(self.meta)} rows but labels.npy has "
+                             f"{len(self.labels_arr)}; row i must match vector i")
+        self.ids = self._find_ids(info)
+        self.image_root = self._find_root(d, info)
+        self.class_names = self._class_names()
+
+    # ---- construction helpers
+    def _find_ids(self, info: dict) -> list[str]:
+        lower = {c.lower(): c for c in self.meta.columns}
+        for name in self.ID_COLUMNS:
+            if name in lower:
+                return [self._clean_id(v) for v in self.meta[lower[name]]]
+        if isinstance(info.get("ids"), list) and len(info["ids"]) == len(self.meta):
+            return [self._clean_id(v) for v in info["ids"]]
+        raise ValueError("cannot tell which image file belongs to each row: metadata.csv has columns "
+                         f"{list(self.meta.columns)}; expected an 'id' column (or 'ids' in meta.json)")
+
+    @staticmethod
+    def _clean_id(v) -> str:
+        t = str(v)
+        return t[:-2] if t.endswith(".0") else (Path(t).stem if t.lower().endswith(IMAGE_EXTS) else t)
+
+    @staticmethod
+    def _find_root(index_dir: Path, info: dict) -> Path:
+        cands = []
+        if os.environ.get("VISIONSEEK_DEMO_IMAGES"):
+            cands.append(Path(os.environ["VISIONSEEK_DEMO_IMAGES"]))
+        if info.get("image_root"):
+            r = Path(info["image_root"])
+            cands += [r] if r.is_absolute() else [index_dir / r, ROOT / r, DATA_DIR / r]
+        cands.append(DATA_DIR / "fashion" / "images")       # where prepare_demo_dataset.py reads them from
+        for c in cands:
+            if c.is_dir():
+                return c
+        raise FileNotFoundError("catalogue image folder not found; tried "
+                                f"{[str(c) for c in cands] or 'nothing (no image_root in meta.json)'}. "
+                                "Copy the images here and set VISIONSEEK_DEMO_IMAGES to that folder.")
+
+    def _class_names(self) -> list[str]:
+        n = int(self.labels_arr.max()) + 1
+        if "articleType" not in self.meta.columns:
+            return [f"class {i}" for i in range(n)]
+        names = []
+        for lab in range(n):
+            vals = self.meta.loc[self.labels_arr == lab, "articleType"].dropna()
+            names.append(str(vals.mode().iloc[0]) if len(vals) else f"class {lab}")
+        return names
+
+    # ---- gallery interface
+    def __len__(self) -> int:
+        return len(self.meta)
+
+    def labels(self) -> np.ndarray:
+        return self.labels_arr
+
+    def path(self, g: int) -> Path:
+        for ext in (".jpg", *IMAGE_EXTS):
+            p = self.image_root / f"{self.ids[g]}{ext}"
+            if p.exists():
+                return p
+        return self.image_root / f"{self.ids[g]}.jpg"
+
+    def get(self, g: int) -> tuple[np.ndarray, int]:
+        bgr = cv2.imread(str(self.path(g)), cv2.IMREAD_COLOR)
+        if bgr is None:
+            raise OSError(f"cannot read image {self.path(g)}")
+        return bgr, int(self.labels_arr[g])
+
+    def describe(self, g: int) -> str:
+        """Product name (and exact colour) of row g, for captions."""
+        row = self.meta.iloc[g]
+        name = str(row["productDisplayName"]) if "productDisplayName" in self.meta.columns else self.ids[g]
+        colour = row["baseColour"] if "baseColour" in self.meta.columns else None
+        return name if colour is None or str(colour) == "nan" else f"{name} ({colour})"
+
+
 def open_gallery(spec: str = "flowers102") -> object:
-    """'flowers102' or 'folder:<path>' -> gallery object."""
+    """'flowers102', 'folder:<path>' or 'catalog:<index dir>' -> gallery object."""
     if spec == "flowers102":
         return Flowers102Gallery(DATA_DIR)
     if spec.startswith("folder:"):
         return FolderGallery(Path(spec.split(":", 1)[1]))
-    raise ValueError(f"unknown dataset '{spec}' (use 'flowers102' or 'folder:<path>')")
+    if spec.startswith("catalog:"):
+        return CatalogGallery(Path(spec.split(":", 1)[1]))
+    raise ValueError(f"unknown dataset '{spec}' (use 'flowers102', 'folder:<path>' or 'catalog:<dir>')")
+
+
+def available_datasets(primary_spec: str = "flowers102") -> dict[str, tuple[str, Path]]:
+    """Datasets the UI can switch between: {label: (spec for open_gallery, index dir)}.
+
+    The primary dataset (VISIONSEEK_INDEX_DIR, default index\\) is always listed. The fashion
+    demo catalogue is added when index\\demo (override: VISIONSEEK_DEMO_INDEX) has labels.npy
+    and metadata.csv, i.e. after scripts/prepare_demo_dataset.py has been run.
+    """
+    label = ("Flowers-102 (benchmark)" if primary_spec == "flowers102"
+             else f"Custom: {Path(primary_spec.split(':', 1)[-1]).name}")
+    out: dict[str, tuple[str, Path]] = {label: (primary_spec, INDEX_DIR)}
+    demo = Path(os.environ.get("VISIONSEEK_DEMO_INDEX", INDEX_DIR / "demo"))
+    if demo != INDEX_DIR and (demo / "labels.npy").exists() and (demo / "metadata.csv").exists():
+        out["Fashion demo"] = (f"catalog:{demo}", demo)
+    return out
 
 
 def gallery_query_range(gallery) -> tuple[int, int]:

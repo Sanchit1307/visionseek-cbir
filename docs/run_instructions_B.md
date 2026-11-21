@@ -76,3 +76,45 @@ Per result: cosine, "in top x% of the gallery", z-score, weight, contribution fo
 texture / edge / DCT, a plain-text reason built from the strongest signals (no language model),
 plus hue histograms and gradient (edge) maps of query and match. Text-only searches have no
 image to compare, so the panel is shown for image queries only.
+
+## WP12: near-duplicate detection
+```powershell
+python tests\test_duplicates.py        # copies, pHash, tiers, curves, whole eval script on a synthetic gallery
+python scripts\eval_duplicates.py --limit 100    # quick check (CLIP-encodes 100 x 4 copies)
+python scripts\eval_duplicates.py                # full: 500 originals x 4 copies = 2,000 CLIP encodes (a few minutes)
+python tests\test_app.py                         # includes the Duplicates tab
+streamlit run app\app.py                         # tab "Duplicates"
+```
+Outputs (results\): `duplicate_thresholds.json` (read by the app), `duplicates_curve.csv`,
+`duplicates_summary.csv` (precision + recall per copy type for CLIP / pHash / any / both),
+`duplicates_pr.png`, `duplicates_false_positives.csv` (look at these by eye and mention them in the
+report). Caches in index\: `phash.npy`, `dup_eval_cache.npz` (gitignored; pull the new .gitignore).
+Thresholds come from the curves: duplicate = lowest cosine with precision >= 0.99 (`--min-precision`),
+similar = best F1 for same-class retrieval. Do not edit them by hand to look better.
+
+## WP13b: dataset switch, filters, fashion demo, adaptive toggle
+Merge Person A's PRs first (feat/adaptive, feat/demo-dataset), then branch from main.
+```powershell
+python tests\test_filters.py      # HSV colours, metadata filters, CatalogGallery (loader errors), registry
+python tests\test_app.py          # dataset switch, filters, adaptive toggle (skips parts A's modules / real data)
+streamlit run app\app.py          # sidebar: Dataset = Flowers-102 / Fashion demo; Filters; Hybrid -> Adaptive
+```
+Fashion demo = `index\demo\` written by A's `scripts\prepare_demo_dataset.py` (vectors, labels.npy,
+metadata.csv, meta.json). It appears in the Dataset selector as soon as `labels.npy` and `metadata.csv`
+exist there. The 60x80 px product images are found through `image_root` in meta.json; if that path is an
+absolute path from A's machine, copy the .jpg files here and set
+`$env:VISIONSEEK_DEMO_IMAGES = "C:\path\to\images"` before `streamlit run`.
+`index\` is gitignored: A shares `index\demo\` (including metadata.csv and meta.json) and the images by drive.
+* Filters (catalogue): gender, master category, sub category, article type and exact `baseColour`
+  (several values in one box = OR, different boxes = AND). Flowers-102 has no metadata: category =
+  class, colour = approximate HSV name.
+* Adaptive weights: Flowers-102 only (quality thresholds were calibrated there); off for the catalogue.
+  The bucket and weights are shown under the results. Needs `src\adaptive.py`, `src\quality.py`,
+  `results\adaptive_weights.json`, `src\quality_thresholds.json` committed (A's note).
+
+## WP12 follow-up: why is the CLIP duplicate threshold 0.99?
+```powershell
+python scripts\eval_duplicates.py     # cached copies, takes seconds; now prints [1] [2] [3] diagnostics
+```
+[1] cosine of each copy type to its original; [2] false positives vs threshold and how many distinct
+originals cause them; [3] `results\duplicates_fp_sheet.png`: closest non-original pairs to look at.
