@@ -22,5 +22,6 @@ __pycache__/
 Thumbs.db
 
 # Secrets
-.env*.npz
+.env
+*.npz
 index_*/

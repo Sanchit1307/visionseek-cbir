@@ -1,0 +1,13 @@
+{
+  "dup_cos": 0.99,
+  "sim_cos": 0.9,
+  "ham": 7,
+  "rule": "any",
+  "n_originals": 500,
+  "min_precision": 0.99,
+  "dup_precision": 0.9969,
+  "dup_recall": 0.325,
+  "sim_f1": 0.5318,
+  "sim_precision": 0.5925,
+  "sim_recall": 0.4823
+}
