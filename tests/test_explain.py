@@ -1,6 +1,6 @@
 """Tests for src/explain.py (Person B, WP11).
 
-Run from the repo root:  python tests\\test_explain.py
+Run from the repo root:  python tests/test_explain.py
 """
 
 import shutil
@@ -79,6 +79,17 @@ def test_visuals() -> None:
     print("ok: hue histogram and edge map images")
 
 
+def test_result_strip() -> None:
+    a = np.full((60, 40, 3), 100, np.uint8)
+    b = np.full((50, 80, 3), 200, np.uint8)
+    strip = ex.result_strip([a, b], [True, False], height=100, border=4)
+    assert strip.dtype == np.uint8 and strip.shape[0] == 108 and strip.shape[1] == (67 + 8) + (160 + 8)
+    assert tuple(strip[0, 0]) == (46, 158, 68) and tuple(strip[0, -1]) == (208, 59, 59)       # green, red frames
+    assert tuple(ex.result_strip([a])[0, 0]) == (200, 200, 200)                                # unknown relevance: grey
+    assert ex.result_strip([]).shape[0] > 0
+    print("ok: result_strip (resize to common height, green / red / grey frames, empty input)")
+
+
 def test_engine_consistency() -> None:
     import test_pipeline as tp
     from src import retrieval as rt
@@ -123,5 +134,6 @@ def test_engine_consistency() -> None:
 if __name__ == "__main__":
     test_numbers_and_reasons()
     test_visuals()
+    test_result_strip()
     test_engine_consistency()
     print("\nAll explain tests passed")

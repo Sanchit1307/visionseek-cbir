@@ -1,6 +1,6 @@
 """Logic test for src/features/clip_encoder.py with fake torch/open_clip modules.
 
-Run from the repo root:  python tests\\test_clip_encoder.py
+Run from the repo root:  python tests/test_clip_encoder.py
 
 This checks batching, ordering, L2-normalisation, input validation, the empty
 case and that the model is loaded once. It does NOT test the real CLIP weights:

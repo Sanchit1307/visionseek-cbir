@@ -1,13 +1,13 @@
 """Comparison table and plots for the slides (Person B, WP4b).
 
 Run from the repo root after Person A's baseline and eval_clip.py:
-    python scripts\\make_comparison.py
+    python scripts/make_comparison.py
 
-Reads results\\baseline_classical.csv (+ baseline_clip.csv if present, and
+Reads results/baseline_classical.csv (+ baseline_clip.csv if present, and
 robustness.csv for the heatmap) and writes:
-    results\\comparison_table.csv / .md     P@5, P@10, mAP, latency per retriever
-    results\\comparison.png                 quality bars + latency bars
-    results\\robustness_heatmap.png         mAP retained (% of clean) per condition
+    results/comparison_table.csv / .md     P@5, P@10, mAP, latency per retriever
+    results/comparison.png                 quality bars + latency bars
+    results/robustness_heatmap.png         mAP retained (% of clean) per condition
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ def main() -> None:
     print(df.to_string(index=False))
     saved = ["comparison_table.csv/.md", "comparison.png"]
     if "clip" not in set(df["retriever"]):
-        print("\n(no CLIP row yet: run scripts\\build_index.py then scripts\\eval_clip.py)")
+        print("\n(no CLIP row yet: run scripts/build_index.py then scripts/eval_clip.py)")
 
     rp = res / "robustness.csv"
     if rp.exists():

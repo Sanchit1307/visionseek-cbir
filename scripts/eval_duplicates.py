@@ -1,11 +1,11 @@
 """Near-duplicate evaluation on synthetic copies; picks the tier thresholds (Person B, WP12).
 
-Run from the repo root after scripts\\build_index.py (needs the CLIP index):
-    python scripts\\eval_duplicates.py               # 500 originals x 4 copies = 2,000 queries
-    python scripts\\eval_duplicates.py --limit 100   # quick check
+Run from the repo root after scripts/build_index.py (needs the CLIP index):
+    python scripts/eval_duplicates.py               # 500 originals x 4 copies = 2,000 queries
+    python scripts/eval_duplicates.py --limit 100   # quick check
 
 Protocol
-  * originals = the saved test queries (index\\query_ids.npy); each gets 4 copies:
+  * originals = the saved test queries (index/query_ids.npy); each gets 4 copies:
     resized (50%), JPEG q30, 10% crop, brightness +40.
   * a copy is searched against the WHOLE gallery (its original is in it). Rule
     "score >= tau" retrieves every gallery image above tau. True positive = the
@@ -15,11 +15,11 @@ Protocol
   * duplicate threshold = the lowest tau with precision >= --min-precision (0.99);
     similar threshold = best F1 for "same class" retrieval on the clean originals.
   * a gallery image that is itself a near-copy of another counts as a false positive
-    here; results\\duplicates_false_positives.csv lists them so you can inspect.
+    here; results/duplicates_false_positives.csv lists them so you can inspect.
 
-Writes results\\duplicates_curve.csv, duplicates_summary.csv, duplicate_thresholds.json,
-duplicates_pr.png, duplicates_false_positives.csv; caches index\\phash.npy and
-index\\dup_eval_cache.npz (gitignored, safe to delete).
+Writes results/duplicates_curve.csv, duplicates_summary.csv, duplicate_thresholds.json,
+duplicates_pr.png, duplicates_false_positives.csv; caches index/phash.npy and
+index/dup_eval_cache.npz (gitignored, safe to delete).
 """
 
 from __future__ import annotations
@@ -111,10 +111,15 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
 
     d = args.index_dir
-    for f in ("clip_image.npy", "labels.npy", "query_ids.npy"):
+    for f in ("clip_image.npy", "labels.npy"):
         if not (d / f).exists():
-            raise SystemExit(f"Missing {d / f}. Run scripts\\build_index.py first.")
-    G, labels, qids = np.load(d / "clip_image.npy"), np.load(d / "labels.npy"), np.load(d / "query_ids.npy")
+            raise SystemExit(f"Missing {d / f}. Run scripts/build_index.py first.")
+    G, labels = np.load(d / "clip_image.npy"), np.load(d / "labels.npy")
+    if (d / "query_ids.npy").exists():
+        qids = np.load(d / "query_ids.npy")
+    else:                                  # e.g. the fashion demo index: draw a seeded sample of originals
+        qids = np.sort(np.random.default_rng(42).choice(len(G), size=min(300, len(G)), replace=False))
+        print(f"No query_ids.npy in {d}: using a seeded sample of {len(qids)} originals.")
     orig_ids = qids[:args.limit] if args.limit else qids
     gallery = open_gallery(args.dataset)
     print(f"{len(orig_ids)} originals x {len(dp.DUP_KINDS)} copies against a gallery of {len(G)}")
@@ -264,7 +269,7 @@ def diagnostics(S, ham, orig, kind_idx, labels, gallery, inspect_tau: float) -> 
         sheet = np.vstack([np.hstack(tiles[i:i + 2]) for i in range(0, len(tiles), 2)])
         cv2.imwrite(str(RESULTS_DIR / "duplicates_fp_sheet.png"), sheet)
         print(f"\n[3] Contact sheet of the {len(top)} closest non-original pairs at cosine >= {inspect_tau}: "
-              "results\\duplicates_fp_sheet.png (left = original, right = the other gallery image).")
+              "results/duplicates_fp_sheet.png (left = original, right = the other gallery image).")
     else:
         print(f"\n[3] No false positives at cosine >= {inspect_tau}: no contact sheet.")
 

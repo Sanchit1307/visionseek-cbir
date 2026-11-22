@@ -1,6 +1,6 @@
 """Tests for src/duplicates.py and scripts/eval_duplicates.py (Person B, WP12).
 
-Run from the repo root:  python tests\\test_duplicates.py
+Run from the repo root:  python tests/test_duplicates.py
 Pure logic first (copies, pHash, tiers, curves, pair scan), then the whole evaluation
 script on the synthetic gallery from tests/test_pipeline.py with the CLIP stand-in.
 """

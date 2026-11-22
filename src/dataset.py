@@ -264,7 +264,7 @@ def available_datasets(primary_spec: str = "flowers102") -> dict[str, tuple[str,
     """Datasets the UI can switch between: {label: (spec for open_gallery, index dir)}.
 
     The primary dataset (VISIONSEEK_INDEX_DIR, default index\\) is always listed. The fashion
-    demo catalogue is added when index\\demo (override: VISIONSEEK_DEMO_INDEX) has labels.npy
+    demo catalogue is added when index/demo (override: VISIONSEEK_DEMO_INDEX) has labels.npy
     and metadata.csv, i.e. after scripts/prepare_demo_dataset.py has been run.
     """
     label = ("Flowers-102 (benchmark)" if primary_spec == "flowers102"

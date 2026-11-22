@@ -1,6 +1,6 @@
 """Headless UI smoke test for app/app.py using Streamlit's AppTest (no browser).
 
-Run from the repo root:  python tests\\test_app.py
+Run from the repo root:  python tests/test_app.py
 Uses the same synthetic gallery + CLIP stand-in as tests/test_pipeline.py, plus a synthetic
 product catalogue (tests/demo_catalog.py) for the dataset switch and the metadata filters.
 The synthetic gallery stands in for Flowers-102 (src.dataset.Flowers102Gallery is patched), so
@@ -48,6 +48,8 @@ def test_adaptive_modules() -> None:
         return
     try:
         from src.dataset import DATA_DIR, Flowers102Gallery
+        if not (DATA_DIR / "flowers-102").is_dir():                       # never start a download from a test
+            raise FileNotFoundError(f"{DATA_DIR / 'flowers-102'} not found (run scripts/build_index.py once)")
         gal = Flowers102Gallery(DATA_DIR)
         imgs = [gal.get(g)[0] for g in range(2040, 2060)]              # first 20 test images
     except Exception as exc:  # no torchvision / dataset on this machine
@@ -104,6 +106,26 @@ def main() -> None:
         at.selectbox(key="rest").set_value("median 3x3").run()
         assert not at.exception, at.exception
         print("ok: degrade + restore")
+
+        # Side-by-side original vs modified query, minimum similarity, quality panel
+        at.checkbox(key="compare").check().run()
+        assert not at.exception, at.exception
+        titles = [x.value for x in at.subheader]
+        assert "Original vs modified query (top 5)" in titles, titles
+        at.slider(key="min_sim").set_value(0.99).run()
+        assert not at.exception, at.exception
+        assert any("No gallery image matches" in w.value for w in at.warning) or any("Top" in x.value for x in at.subheader)
+        at.slider(key="min_sim").set_value(0.0).run()
+        at.checkbox(key="compare").uncheck().run()
+        assert not at.exception, at.exception
+        assert "Original vs modified query (top 5)" not in [x.value for x in at.subheader]
+        try:
+            import src.adaptive, src.quality  # noqa: F401
+            assert "Query quality (image analyzer)" in [e.label for e in at.expander], [e.label for e in at.expander]
+            quality_note = ", quality panel"
+        except ImportError:
+            quality_note = " (quality panel needs Person A's modules)"
+        print("ok: side-by-side comparison, minimum-similarity filter" + quality_note)
 
         # Duplicates tab: default source is a gallery image; try every edit and the gallery scan
         for edit in ("none (exact copy)", "resize", "jpeg", "crop", "brightness"):

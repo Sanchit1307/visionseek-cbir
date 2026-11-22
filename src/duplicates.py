@@ -8,8 +8,9 @@ decided from the CLIP cosine and, optionally, a 64-bit perceptual hash (pHash).
 
 Thresholds are NOT chosen by eye: scripts/eval_duplicates.py builds synthetic copies
 of gallery images, sweeps every threshold, and writes results/duplicate_thresholds.json
-from the precision-recall curves; `load_thresholds` reads it. The defaults below are
-placeholders that only apply until that script has been run.
+from the precision-recall curves; `load_thresholds` reads it. The built-in defaults below are the
+values that script produced on Flowers-102 (500 originals x 4 copies, duplicate precision >= 0.99),
+so the app behaves sensibly before that JSON is committed; re-run the script to regenerate them.
 
 Image convention: OpenCV BGR uint8.
 """
@@ -81,10 +82,10 @@ TIERS = ("duplicate", "similar", "different")
 
 @dataclass(frozen=True)
 class Thresholds:
-    dup_cos: float = 0.95     # placeholder until scripts/eval_duplicates.py has been run
-    sim_cos: float = 0.80     # placeholder
-    ham: int = 10             # pHash: duplicate if Hamming distance <= ham
-    rule: str = "clip"        # clip | phash | any (either) | both (CLIP and pHash)
+    dup_cos: float = 0.99     # CLIP cosine: lowest value with precision >= 0.99 (Flowers-102 copies)
+    sim_cos: float = 0.90     # best F1 for same-class retrieval (P 0.59, R 0.48)
+    ham: int = 7              # pHash: duplicate if Hamming distance <= ham (precision 0.99, recall 0.78)
+    rule: str = "any"         # clip | phash | any (either) | both (CLIP and pHash); "any" had the best F1
 
 
 def is_duplicate(cos: np.ndarray, ham: np.ndarray | None, th: Thresholds) -> np.ndarray:
