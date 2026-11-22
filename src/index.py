@@ -81,7 +81,11 @@ def load_index(path: Path, vectors: np.ndarray | None = None):
     """Load a saved .faiss file, or rebuild from `vectors` if it is missing."""
     path = Path(path)
     if HAVE_FAISS and path.exists():
-        return faiss.read_index(str(path))
+        index = faiss.read_index(str(path))
+        # a stale .faiss (vectors replaced or rebuilt since) must never be used silently
+        if vectors is None or (index.ntotal == len(vectors) and index.d == np.shape(vectors)[1]):
+            return index
+        return build_index(vectors)
     if vectors is None:
         raise FileNotFoundError(f"{path} not found and no vectors given to rebuild from")
     return build_index(vectors)

@@ -1,9 +1,9 @@
 """Build all retrieval indexes (Person B).
 
 Run from the repo root:
-    python scripts\\build_index.py                    # Flowers-102, everything
-    python scripts\\build_index.py --skip-clip        # classical only (fast)
-    python scripts\\build_index.py --dataset folder:data\\demo --index-dir index_demo
+    python scripts/build_index.py                    # Flowers-102, everything
+    python scripts/build_index.py --skip-clip        # classical only (fast)
+    python scripts/build_index.py --dataset folder:data/demo --index-dir index_demo
 
 Writes to index\\ (gitignored; share the .npy files via drive/pendrive):
     labels.npy, query_ids.npy                       (if missing)

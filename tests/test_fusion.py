@@ -1,6 +1,6 @@
 """Tests for src/fusion.py and SearchEngine.search_fused (Person B, WP9).
 
-Run from the repo root:  python tests\\test_fusion.py
+Run from the repo root:  python tests/test_fusion.py
 Pure NumPy checks first, then the hybrid search on the synthetic gallery from
 tests/test_pipeline.py (CLIP stand-in, no weights needed).
 """

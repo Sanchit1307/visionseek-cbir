@@ -142,3 +142,22 @@ def edge_map(img_bgr: np.ndarray, size: int = 160) -> np.ndarray:
     mag = np.hypot(cv2.Sobel(g, cv2.CV_32F, 1, 0, ksize=3), cv2.Sobel(g, cv2.CV_32F, 0, 1, ksize=3))
     scale = max(float(np.percentile(mag, 99)), 1e-6)
     return cv2.cvtColor(np.clip(mag / scale * 255.0, 0, 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+
+
+_GREEN, _RED, _GREY = (46, 158, 68), (208, 59, 59), (200, 200, 200)       # RGB frames
+
+
+def result_strip(images_rgb: list[np.ndarray], relevant=None, height: int = 110, border: int = 4) -> np.ndarray:
+    """Horizontal montage of result thumbnails for side-by-side comparisons (RGB uint8 in and out).
+
+    Every image is resized to `height` and framed green (relevant) or red (not relevant) when `relevant`
+    (one bool per image) is given, grey otherwise. Returns a small blank strip when there are no images."""
+    if not images_rgb:
+        return np.full((height + 2 * border, 8, 3), 245, np.uint8)
+    tiles = []
+    for i, im in enumerate(images_rgb):
+        h, w = im.shape[:2]
+        t = cv2.resize(im, (max(1, int(round(w * height / h))), height), interpolation=cv2.INTER_AREA)
+        colour = _GREY if relevant is None else (_GREEN if bool(relevant[i]) else _RED)
+        tiles.append(cv2.copyMakeBorder(t, border, border, border, border, cv2.BORDER_CONSTANT, value=colour))
+    return np.hstack(tiles)

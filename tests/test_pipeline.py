@@ -1,6 +1,6 @@
 """End-to-end plumbing test for Person B's modules (no dataset download, no CLIP weights).
 
-Run from the repo root:  python tests\\test_pipeline.py
+Run from the repo root:  python tests/test_pipeline.py
 
 Builds a small synthetic image-folder gallery, replaces the CLIP model with a
 deterministic stand-in (a fixed random projection of the colour descriptor), then

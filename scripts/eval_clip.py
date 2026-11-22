@@ -1,11 +1,11 @@
 """CLIP baseline: same protocol and columns as scripts/baseline_classical.py (Person B).
 
-Run from the repo root (after scripts\\build_index.py):
-    python scripts\\eval_clip.py
+Run from the repo root (after scripts/build_index.py):
+    python scripts/eval_clip.py
 
-Writes results\\baseline_clip.csv (one row, retriever = clip) and prints a
+Writes results/baseline_clip.csv (one row, retriever = clip) and prints a
 zero-shot text-search sanity check on Flowers-102. Protocol: gallery = all
-images, queries = the saved 500-query sample (index\\query_ids.npy), self-match
+images, queries = the saved 500-query sample (index/query_ids.npy), self-match
 excluded, relevant = same class.
 
 The zero-shot check encodes "a photo of a <flower>, a type of flower." for the
@@ -48,7 +48,7 @@ def main(argv: list[str] | None = None) -> None:
     d = args.index_dir
     for f in ("clip_image.npy", "labels.npy", "query_ids.npy"):
         if not (d / f).exists():
-            raise SystemExit(f"Missing {d / f}. Run scripts\\build_index.py first.")
+            raise SystemExit(f"Missing {d / f}. Run scripts/build_index.py first.")
     vecs, labels, qids = (np.load(d / "clip_image.npy"), np.load(d / "labels.npy"),
                           np.load(d / "query_ids.npy"))
 

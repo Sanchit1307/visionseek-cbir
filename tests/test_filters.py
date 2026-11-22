@@ -1,6 +1,6 @@
 """Tests for src/filters.py, CatalogGallery and the dataset registry (Person B, WP13b).
 
-Run from the repo root:  python tests\\test_filters.py
+Run from the repo root:  python tests/test_filters.py
 """
 
 import json
@@ -83,7 +83,17 @@ def test_masks_and_results() -> None:
     f = fl.filter_result(FusedResult("hybrid", ids, sc, 1.0, 2.0, parts={"clip": sc * 2},
                                      weights={"clip": 1.0}, norm="zscore"), mask, 10)
     assert f.ids.tolist() == [4, 2, 0] and np.allclose(f.parts["clip"], [1.6, 1.2, 0.8]) and f.norm == "zscore"
-    print("ok: class / HSV-colour masks, metadata masks (OR within, AND across, missing values), filter_result")
+    # minimum similarity: raw cosine for a plain result, CLIP cosine for a fused one
+    sc = np.array([.9, .7, .5, .3], np.float32)
+    plain = SearchResult("clip", np.array([4, 3, 2, 1]), sc, 1.0, 2.0)
+    assert fl.min_similarity(plain, 0) is plain and fl.min_similarity(plain, -1) is plain
+    assert fl.min_similarity(plain, 0.6).ids.tolist() == [4, 3] and len(fl.min_similarity(plain, 0.95).ids) == 0
+    fused = FusedResult("hybrid", np.array([4, 3, 2, 1]), np.array([3., 2., 1., 0.], np.float32), 1.0, 2.0,
+                        parts={"clip": np.array([.8, .4, .6, .2], np.float32), "classical_concat": np.array([.9] * 4, np.float32)},
+                        weights={"clip": .9, "classical_concat": .1}, norm="none")
+    ff = fl.min_similarity(fused, 0.5)                          # filters on the CLIP cosine, keeps order
+    assert ff.ids.tolist() == [4, 2] and np.allclose(ff.scores, [3., 1.]) and np.allclose(ff.parts["clip"], [.8, .6])
+    print("ok: class / HSV-colour masks, metadata masks (OR within, AND across, missing values), filter_result, min_similarity")
 
 
 def test_catalog_gallery() -> None:

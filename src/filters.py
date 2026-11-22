@@ -114,3 +114,21 @@ def filter_result(res, mask: np.ndarray, k: int):
     if hasattr(res, "parts"):
         changes["parts"] = {n: v[keep][:k] for n, v in res.parts.items()}
     return dataclasses.replace(res, **changes)
+
+
+def min_similarity(res, min_sim: float):
+    """Drop results whose similarity is below `min_sim` (0 or less = keep everything).
+
+    The similarity is the raw cosine: `res.scores` for a single retriever or a text query, and the CLIP
+    cosine (`parts['clip']`, else the first retriever) for a fused result, whose own score is a
+    weighted z-score sum and not a cosine."""
+    if min_sim <= 0:
+        return res
+    sim = res.scores
+    if getattr(res, "parts", None):
+        sim = res.parts.get("clip", next(iter(res.parts.values())))
+    keep = np.asarray(sim) >= min_sim
+    changes = {"ids": res.ids[keep], "scores": res.scores[keep]}
+    if hasattr(res, "parts"):
+        changes["parts"] = {n: v[keep] for n, v in res.parts.items()}
+    return dataclasses.replace(res, **changes)

@@ -17,7 +17,7 @@ PERSON_B = [
     "app/app.py", "src/dataset.py", "src/index.py", "src/retrieval.py", "src/fusion.py",
     "src/explain.py", "src/duplicates.py", "src/filters.py", "src/features/clip_encoder.py",
     "scripts/build_index.py", "scripts/eval_clip.py", "scripts/make_comparison.py",
-    "scripts/tune_fusion.py", "scripts/eval_duplicates.py",
+    "scripts/tune_fusion.py", "scripts/eval_duplicates.py", "scripts/make_qualitative.py",
 ]
 PERSON_A = ["src/degrade.py", "src/evaluate.py", "src/features/classical.py",
             "scripts/baseline_classical.py"]

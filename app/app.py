@@ -1,7 +1,7 @@
 """VisionSeek Streamlit UI, v1 (Person B).
 
 Run from the repo root:
-    streamlit run app\\app.py
+    streamlit run app/app.py
 
 Search modes: image -> image (choose the retriever), text -> image (CLIP),
 image + text -> image (CLIP). Shows similarity scores and latency for each query.
@@ -28,7 +28,7 @@ from src import filters as fl  # noqa: E402
 from src.dataset import RESULTS_DIR, available_datasets, bgr_to_rgb, open_gallery  # noqa: E402
 from src.degrade import degrade, restore  # noqa: E402
 from src import duplicates as dp  # noqa: E402
-from src.explain import edge_map, explain_results, hue_histogram_image  # noqa: E402
+from src.explain import edge_map, explain_results, hue_histogram_image, result_strip  # noqa: E402
 from src.fusion import DEFAULT_NORM, load_weights  # noqa: E402
 
 try:                                    # Person A's branch feat/adaptive (merge it first)
@@ -136,7 +136,7 @@ except (OSError, ValueError) as exc:           # e.g. catalogue image folder not
     st.error(f"Could not open '{ds_label}': {exc}")
     st.stop()
 if not engine.available:
-    st.error(f"No indexes found in {INDEX_ACTIVE}. Run `python scripts\\build_index.py` first.")
+    st.error(f"No indexes found in {INDEX_ACTIVE}. Run `python scripts/build_index.py` first.")
     st.stop()
 
 st.title("VisionSeek: multimodal image search")
@@ -174,6 +174,9 @@ with st.sidebar:
         retriever = "clip"
         st.caption("Text queries use the CLIP index (classical descriptors have no text meaning).")
     k = st.slider("Results (top-K)", 1, 30, 10, key="k")
+    min_sim = st.slider("Minimum similarity (cosine)", 0.0, 1.0, 0.0, 0.01, key="min_sim",
+                        help="Drop results below this cosine similarity (0 = off). For the hybrid it applies to the "
+                             "CLIP cosine. Text-to-image cosines are small (about 0.2 to 0.35), so use low values there.")
     w_img = 0.5
     if mode == "Image + text":
         w_img = st.slider("Weight of the image (vs text)", 0.0, 1.0, 0.5, 0.05)
@@ -217,6 +220,8 @@ with tab_search:
     query_img: np.ndarray | None = None
     query_gid: int | None = None          # gallery id when the query is a gallery image
     text = ""
+    orig_img: np.ndarray | None = None    # the query before any degradation / restoration
+    compare, modified = False, False
 
     if mode in ("Image", "Image + text"):
         source = st.radio("Query image", ["Upload a photo", "Random test image from the gallery"],
@@ -244,6 +249,9 @@ with tab_search:
             level = c2.selectbox("Level", DEGRADE_LEVELS.get(kind, (0,)), disabled=kind == "none",
                                  key=f"level_{kind}")
             rest = c3.selectbox("Restoration filter", list(RESTORE_OPTIONS), key="rest")
+            compare = st.checkbox("Also show the original query's results (side by side)", value=False, key="compare")
+            orig_img = query_img
+            modified = kind != "none" or RESTORE_OPTIONS[rest] is not None
             if query_img is not None:
                 if kind != "none":
                     query_img = degrade(query_img, kind, int(level), seed=NOISE_SEED)
@@ -262,40 +270,63 @@ with tab_search:
             cap = "Query image" + (f" (gallery #{query_gid}, {item_name(gallery, query_gid, int(engine.labels[query_gid]))})"
                                    if query_gid is not None and engine.labels is not None else "")
             st.image(bgr_to_rgb(fit(query_img, 300)), caption=cap)
+        if HAVE_ADAPTIVE:
+            with st.expander("Query quality (image analyzer)"):
+                try:
+                    qa = analyze(query_img)
+                    st.markdown(f"Bucket: **{qa['bucket']}**")
+                    st.dataframe(pd.DataFrame({
+                        "Metric": ["Sharpness (Laplacian variance)", "Noise (Immerkaer sigma, grey levels)",
+                                   "Brightness (mean V)", "Contrast (grey std)", "JPEG blockiness (1 = none)"],
+                        "Value": [round(float(qa[m]), 2) for m in
+                                  ("sharpness", "noise", "brightness", "contrast", "jpeg_blockiness")]}),
+                        hide_index=True)
+                except ValueError:
+                    st.caption("The image is too small to analyse (it needs at least 16 x 16 pixels).")
+                st.caption("Thresholds were calibrated on clean Flowers-102 validation images (2% false alarms per "
+                           "detector), so a phone photo can land in a different bucket than you expect.")
+
+    k_search = engine.n_gallery if mask is not None else k        # filters need the full ranking
+
+    def run_search(img: np.ndarray):
+        """One search with the sidebar settings: (result after filters, quality dict or None)."""
+        quality = None
+        if mode == "Image" and retriever == "hybrid":
+            w_manual = {"clip": w_clip, "classical_concat": 1.0 - w_clip}
+            w_used_in, norm_used = w_manual, fuse_norm
+            if use_adaptive:
+                try:
+                    quality = analyze(img)                                  # BGR uint8
+                    w_used_in = adaptive_weights(quality)
+                    norm_used = load_table()[1]                             # must match the table
+                except ValueError:                                          # image smaller than 16 px
+                    quality, w_used_in, norm_used = None, w_manual, fuse_norm
+            res = engine.search_fused(img, w_used_in, k_search, norm_used, exclude_id=query_gid)
+        elif mode == "Image":
+            res = engine.search_image(img, retriever, k_search, exclude_id=query_gid)
+        elif mode == "Text":
+            res = engine.search_text(text, k_search)
+        else:
+            res = engine.search_image_text(img, text, k_search, w_img, exclude_id=query_gid)
+        if mask is not None:
+            res = fl.filter_result(res, mask, k)
+        return fl.min_similarity(res, min_sim), quality
 
     if not ready:
         st.info({"Image": "Upload a photo or pick a random gallery image to search.",
                  "Text": "Type a description to search.",
                  "Image + text": "Provide both a query image and a text description."}[mode])
     elif "clip" not in engine.available and (mode != "Image" or retriever in ("clip", "hybrid")):
-        st.warning("The CLIP index is missing. Run `python scripts\\build_index.py` (without --skip-clip).")
+        st.warning("The CLIP index is missing. Run `python scripts/build_index.py` (without --skip-clip).")
     else:
-        k_search = engine.n_gallery if mask is not None else k    # filters need the full ranking
         try:
             with st.spinner("Searching..."):
-                if mode == "Image" and retriever == "hybrid":
-                    w_manual = {"clip": w_clip, "classical_concat": 1.0 - w_clip}
-                    w_used_in, norm_used, quality = w_manual, fuse_norm, None
-                    if use_adaptive:
-                        try:
-                            quality = analyze(query_img)                    # BGR uint8
-                            w_used_in = adaptive_weights(quality)
-                            norm_used = load_table()[1]                     # must match the table
-                        except ValueError:                                  # image smaller than 16 px
-                            quality, w_used_in, norm_used = None, w_manual, fuse_norm
-                    res = engine.search_fused(query_img, w_used_in, k_search, norm_used, exclude_id=query_gid)
-                elif mode == "Image":
-                    res = engine.search_image(query_img, retriever, k_search, exclude_id=query_gid)
-                elif mode == "Text":
-                    res = engine.search_text(text, k_search)
-                else:
-                    res = engine.search_image_text(query_img, text, k_search, w_img, exclude_id=query_gid)
-        except Exception as exc:  # e.g. CLIP weights could not be loaded
+                res, quality = run_search(query_img)
+        except Exception as exc:  # e.g. CLIP weights could not be loaded; the other tabs keep working
             st.error(f"Search failed: {exc}")
-            st.stop()
-        res = fl.filter_result(res, mask, k) if mask is not None else res
-        if len(res.ids) == 0:
-            st.warning("No gallery image matches the current filters for this query.")
+            res, quality = None, None
+        if res is not None and len(res.ids) == 0:
+            st.warning("No gallery image matches the current filters / minimum similarity for this query.")
             res = None
 
         if res is not None:
@@ -340,6 +371,25 @@ with tab_search:
                             caption=f"{mark}#{j + 1}  score {res.scores[j]:.3f}\n{item_name(gallery, g, label)}"
                                     + (f"\n↳ {exps[j].short}" if exps is not None and exps[j].short else ""))
 
+            if mode != "Text" and compare and modified and orig_img is not None:
+                try:
+                    ref, _ = run_search(orig_img)
+                except Exception as exc:
+                    st.warning(f"Could not search the original query: {exc}")
+                    ref = None
+                if ref is not None:
+                    st.divider()
+                    st.subheader("Original vs modified query (top 5)")
+                    cl, cr = st.columns(2)
+                    for col, title, r in ((cl, "Original query", ref), (cr, "Modified query (this search)", res)):
+                        top = r.ids[:5]
+                        ok = (engine.labels[top] == engine.labels[query_gid]
+                              if query_gid is not None and engine.labels is not None and len(top) else None)
+                        col.markdown(f"**{title}**" + (f" · precision@{len(top)} {ok.mean():.0%}" if ok is not None else ""))
+                        col.image(result_strip([thumbnail(DATASET, int(g), 120) for g in top], ok))
+                        if ok is not None:
+                            col.caption("green = same class as the query, red = different class")
+
             if exps is not None:
                 st.divider()
                 st.subheader("Why these results?")
@@ -375,7 +425,7 @@ with tab_dups:
                "Tiers: duplicate (same photo: resized, re-compressed, cropped, brightness-shifted), "
                "similar (same kind of subject), different.")
     if "clip" not in engine.available:
-        st.warning("The CLIP index is missing. Run `python scripts\\build_index.py` (without --skip-clip).")
+        st.warning("The CLIP index is missing. Run `python scripts/build_index.py` (without --skip-clip).")
     else:
         thr_file = RESULTS_DIR / "duplicate_thresholds.json"
         th0 = dp.load_thresholds(thr_file)
@@ -385,7 +435,8 @@ with tab_dups:
         gbits = get_gallery_phash(str(INDEX_ACTIVE), engine.n_gallery)
         st.caption("Thresholds: from the precision-recall evaluation (results/duplicate_thresholds.json)."
                    if thr_file.exists() else
-                   "Thresholds are placeholders: run `python scripts\\eval_duplicates.py` to choose them from data.")
+                   "Built-in defaults (measured on Flowers-102 copies). Run `python scripts/eval_duplicates.py` "
+                   "to regenerate them for your index.")
         c1, c2, c3 = st.columns(3)
         dup_cos = c1.slider("Duplicate if CLIP cosine >=", 0.50, 1.00, float(min(max(th0.dup_cos, 0.5), 1.0)),
                             0.005, key="dup_cos")
@@ -484,7 +535,7 @@ with tab_results:
         st.subheader("Retriever comparison")
         st.dataframe(pd.concat(tables, ignore_index=True), hide_index=True)
     else:
-        st.info("No results yet: run scripts\\baseline_classical.py and scripts\\eval_clip.py.")
+        st.info("No results yet: run scripts/baseline_classical.py and scripts/eval_clip.py.")
     if (RESULTS_DIR / "fusion_comparison.csv").exists():
         st.subheader("Fixed hybrid fusion (tuned on val, reported on test)")
         st.dataframe(pd.read_csv(RESULTS_DIR / "fusion_comparison.csv"), hide_index=True)

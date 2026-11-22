@@ -1,18 +1,18 @@
 """Tune the fixed hybrid on the VALIDATION split, report on the TEST queries (Person B, WP9).
 
-Run from the repo root after scripts\\build_index.py (needs the full CLIP index):
-    python scripts\\tune_fusion.py                # CLIP vs classical_concat, step 0.05
-    python scripts\\tune_fusion.py --full-grid    # optional: clip + 4 single descriptors, step 0.1
+Run from the repo root after scripts/build_index.py (needs the full CLIP index):
+    python scripts/tune_fusion.py                # CLIP vs classical_concat, step 0.05
+    python scripts/tune_fusion.py --full-grid    # optional: clip + 4 single descriptors, step 0.1
 
 Protocol: tuning queries = all 1,020 Flowers-102 val images (global ids 1020..2039),
 gallery = all 8,189 images, own image excluded, objective = mAP. The chosen
 (weights, norm) are then evaluated ONCE on the 500 saved test queries
-(index\\query_ids.npy), the same queries as every other table. Nothing is tuned on them.
+(index/query_ids.npy), the same queries as every other table. Nothing is tuned on them.
 
 Writes:
-    results\\fusion_tuning.csv       every grid point with its val P@5 / P@10 / mAP
-    results\\fusion_weights.json     best weights + norm (read by the app and by Person A)
-    results\\fusion_comparison.csv   test metrics: CLIP, classical, fixed 0.7/0.3, tuned hybrid
+    results/fusion_tuning.csv       every grid point with its val P@5 / P@10 / mAP
+    results/fusion_weights.json     best weights + norm (read by the app and by Person A)
+    results/fusion_comparison.csv   test metrics: CLIP, classical, fixed 0.7/0.3, tuned hybrid
 (--full-grid writes fusion_tuning_full.csv / fusion_weights_full.json instead.)
 """
 
@@ -47,7 +47,7 @@ def load_vectors(index_dir: Path, names: list[str]) -> dict[str, np.ndarray]:
             vecs[n] = concat_classical({m: np.load(index_dir / vector_file(m)) for m in FEATURE_NAMES})
             continue
         if not p.exists():
-            raise SystemExit(f"Missing {p}. Run scripts\\build_index.py first.")
+            raise SystemExit(f"Missing {p}. Run scripts/build_index.py first.")
         vecs[n] = np.load(p)
     return vecs
 
